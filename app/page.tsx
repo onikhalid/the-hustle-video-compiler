@@ -124,7 +124,7 @@ export default function VideoProcessingApp() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-foreground">Live TV Game Show Studio</h1>
-                <p className="text-sm text-muted-foreground">Professional Video Processing</p>
+                <p className="text-sm text-muted-foreground">Professional Video Processing with Animated Overlay Videos</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

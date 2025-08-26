@@ -8,10 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TextOverlayDesigner } from "@/components/text-overlay-designer"
 import { VideoProcessor, type ProcessingOptions, type VideoSegment, type TimestampEvent } from "@/lib/video-processor"
-import { type OverlayTemplate, type OverlayStyle } from "@/lib/text-overlay-generator"
-import { Settings, Play, Palette, LucideRatio as AspectRatio } from "lucide-react"
+import { getOverlayConfig, validateOverlayFiles } from "@/lib/overlay-config"
+import { Settings, Play, LucideRatio as AspectRatio } from "lucide-react"
 
 interface VideoProcessingEngineProps {
   videos: Array<{ id: string; file: File; name: string }>
@@ -29,7 +28,7 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
   // const [overlayGenerator] = useState(() => new TextOverlayGenerator())
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentStep, setCurrentStep] = useState("")
-  const [showOverlayDesigner, setShowOverlayDesigner] = useState(false)
+
   const [videoDurations, setVideoDurations] = useState<Record<string, number>>({})
   const callbackSetRef = useRef(false)
 
@@ -74,8 +73,6 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
 
   const [processingOptions, setProcessingOptions] = useState<
     ProcessingOptions & {
-      answerOverlayStyle?: OverlayStyle
-      resultOverlayStyle?: OverlayStyle
       aspectRatio?: "original" | "16:9" | "9:16" | "4:5" | "5:4" | "1:1" | "custom"
       customWidth?: number
       customHeight?: number
@@ -84,12 +81,12 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
       resolution?: "720p" | "1080p" | "4k"
     }
   >({
-    questionIntroDuration: 2,
+    gameReadyDuration: 3,
+    questionReadyDuration: 2,
+    timeStartsDuration: 2,
     countdownDuration: 10,
-    resultRevealDuration: 5,
-    questionIntroText: "Question {number}",
-    countdownText: "Time to Answer!",
-    resultText: "Results",
+    timeUpFetchingDuration: 3,
+    leaderboardDuration: 5,
     aspectRatio: "original",
     scaleMode: "fit",
     quality: "medium",
@@ -109,28 +106,7 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
     }
   }, [processor, onProgressUpdate])
 
-  const handleOverlayTemplateSelect = (template: OverlayTemplate) => {
-    if (template.category === "answer") {
-      setProcessingOptions((prev) => ({
-        ...prev,
-        answerOverlayStyle: template.style,
-        answerText: template.defaultText,
-      }))
-    } else if (template.category === "result") {
-      setProcessingOptions((prev) => ({
-        ...prev,
-        resultOverlayStyle: template.style,
-        resultText: template.defaultText,
-      }))
-    }
-  }
 
-  const handleOverlayStyleUpdate = (style: OverlayStyle) => {
-    setProcessingOptions((prev) => ({
-      ...prev,
-      answerOverlayStyle: style,
-    }))
-  }
 
   const handleStartProcessing = async () => {
     if (videos.length < 2 || videos.length > 6) return
@@ -170,7 +146,7 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
             Processing Configuration
           </CardTitle>
           <CardDescription>
-            Configure timing, aspect ratio, and text for your game show video (2-6 questions supported)
+            Configure timing and aspect ratio for your game show video with animated overlay videos (2-6 questions supported)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -302,25 +278,62 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
 
           {/* Separator Between Sections */}
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-4">Timing Settings</h4>
+            <h4 className="text-sm font-medium mb-4">Overlay Video Timing Settings</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="intro-duration">Question Intro Duration (seconds)</Label>
+                <Label htmlFor="game-ready-duration">Game Ready Duration (seconds)</Label>
                 <Input
-                  id="intro-duration"
+                  id="game-ready-duration"
                   type="number"
                   min="1"
-                  max="5"
-                  value={processingOptions.questionIntroDuration}
+                  max="10"
+                  value={processingOptions.gameReadyDuration}
                   onChange={(e) =>
                     setProcessingOptions((prev) => ({
                       ...prev,
-                      questionIntroDuration: Number.parseInt(e.target.value) || 2,
+                      gameReadyDuration: Number.parseInt(e.target.value) || 3,
                     }))
                   }
                   disabled={isProcessing}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="question-ready-duration">Question Ready Duration (seconds)</Label>
+                <Input
+                  id="question-ready-duration"
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={processingOptions.questionReadyDuration}
+                  onChange={(e) =>
+                    setProcessingOptions((prev) => ({
+                      ...prev,
+                      questionReadyDuration: Number.parseInt(e.target.value) || 2,
+                    }))
+                  }
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="time-starts-duration">Time Starts Duration (seconds)</Label>
+                <Input
+                  id="time-starts-duration"
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={processingOptions.timeStartsDuration}
+                  onChange={(e) =>
+                    setProcessingOptions((prev) => ({
+                      ...prev,
+                      timeStartsDuration: Number.parseInt(e.target.value) || 2,
+                    }))
+                  }
+                  disabled={isProcessing}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="countdown-duration">Countdown Duration (seconds)</Label>
                 <Input
@@ -339,17 +352,34 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="result-duration">Result Duration (seconds)</Label>
+                <Label htmlFor="time-up-duration">Time Up Fetching Duration (seconds)</Label>
                 <Input
-                  id="result-duration"
+                  id="time-up-duration"
                   type="number"
                   min="1"
-                  max="15"
-                  value={processingOptions.resultRevealDuration}
+                  max="10"
+                  value={processingOptions.timeUpFetchingDuration}
                   onChange={(e) =>
                     setProcessingOptions((prev) => ({
                       ...prev,
-                      resultRevealDuration: Number.parseInt(e.target.value) || 5,
+                      timeUpFetchingDuration: Number.parseInt(e.target.value) || 3,
+                    }))
+                  }
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="leaderboard-duration">Leaderboard Duration (seconds)</Label>
+                <Input
+                  id="leaderboard-duration"
+                  type="number"
+                  min="1"
+                  max="15"
+                  value={processingOptions.leaderboardDuration}
+                  onChange={(e) =>
+                    setProcessingOptions((prev) => ({
+                      ...prev,
+                      leaderboardDuration: Number.parseInt(e.target.value) || 5,
                     }))
                   }
                   disabled={isProcessing}
@@ -357,60 +387,17 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="countdown-text">Countdown Text</Label>
-              <Input
-                id="countdown-text"
-                value={processingOptions.countdownText}
-                onChange={(e) =>
-                  setProcessingOptions((prev) => ({
-                    ...prev,
-                    countdownText: e.target.value,
-                  }))
-                }
-                placeholder="Time to Answer!"
-                disabled={isProcessing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="result-text">Result Text</Label>
-              <Input
-                id="result-text"
-                value={processingOptions.resultText}
-                onChange={(e) =>
-                  setProcessingOptions((prev) => ({
-                    ...prev,
-                    resultText: e.target.value,
-                  }))
-                }
-                placeholder="Results"
-                disabled={isProcessing}
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 border-t">
-            <Button variant="outline" onClick={() => setShowOverlayDesigner(!showOverlayDesigner)} className="w-full">
-              <Palette className="h-4 w-4 mr-2" />
-              {showOverlayDesigner ? "Hide" : "Show"} Overlay Designer
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
-      {showOverlayDesigner && (
-        <TextOverlayDesigner onTemplateSelect={handleOverlayTemplateSelect} onStyleUpdate={handleOverlayStyleUpdate} />
-      )}
+
 
       {/* Processing Controls */}
       <Card>
         <CardHeader>
           <CardTitle>Video Processing Engine</CardTitle>
           <CardDescription>
-            Process {videos.length} videos with FFmpeg (supports 2-6 videos, preserves aspect ratios)
+            Process {videos.length} videos with animated overlay videos using FFmpeg (supports 2-6 videos, preserves aspect ratios)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -482,6 +469,19 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
               • {processingOptions.scaleMode} scaling • {processingOptions.quality} quality
             </div>
             <div className="grid grid-cols-1 gap-2 text-sm">
+              {/* Initial Game Ready */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 p-2 bg-muted rounded">
+                  <Badge variant="outline">START</Badge>
+                  <span className="truncate">Game Get Ready</span>
+                </div>
+                <div className="ml-6 space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    → Game Ready Video ({processingOptions.gameReadyDuration}s)
+                  </div>
+                </div>
+              </div>
+
               {videos.map((video, index) => (
                 <div key={video.id} className="space-y-1">
                   <div className="flex items-center gap-2 p-2 bg-muted rounded">
@@ -490,7 +490,7 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
                   </div>
                   <div className="ml-6 space-y-1 text-xs text-muted-foreground">
                     <div>
-                      → Question {index + 1} Intro ({processingOptions.questionIntroDuration}s)
+                      → Question {index + 1} Ready Video ({processingOptions.questionReadyDuration}s)
                     </div>
                     <div>
                       → Video plays (
@@ -498,11 +498,16 @@ export function VideoProcessingEngine({ videos, onProcessingComplete, onProgress
                       ratio preserved)
                     </div>
                     <div>
-                      → Countdown: &quot;{processingOptions.countdownText}&quot; ({processingOptions.countdownDuration}s, turns
-                      red at 3s)
+                      → Time Starts Video ({processingOptions.timeStartsDuration}s)
                     </div>
                     <div>
-                      → Results: &quot;{processingOptions.resultText}&quot; ({processingOptions.resultRevealDuration}s)
+                      → Countdown Video ({processingOptions.countdownDuration}s)
+                    </div>
+                    <div>
+                      → Time Up Fetching Video ({processingOptions.timeUpFetchingDuration}s)
+                    </div>
+                    <div>
+                      → Leaderboard Video ({processingOptions.leaderboardDuration}s)
                     </div>
                   </div>
                 </div>
