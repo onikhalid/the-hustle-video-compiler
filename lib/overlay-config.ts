@@ -30,7 +30,7 @@ export const DEFAULT_OVERLAY_CONFIG: OverlayConfig = {
   },
   
   timeStarts: '/files/question_time_starts.gif',
-  countdown: '/files/question_countdown.gif',
+  countdown: '/files/question_countdown.mp4',
   timeUpFetching: '/files/time_up_fetching.gif',
   leaderboard: '/files/question_leaderboard.gif'
 }
@@ -39,8 +39,29 @@ export const DEFAULT_OVERLAY_CONFIG: OverlayConfig = {
  * Get the current overlay configuration
  * This function allows for future customization or dynamic configuration
  */
-export function getOverlayConfig(): OverlayConfig {
-  return DEFAULT_OVERLAY_CONFIG
+export function getOverlayConfig(customOverlays?: { [key: string]: File }): OverlayConfig {
+  if (!customOverlays) {
+    return DEFAULT_OVERLAY_CONFIG
+  }
+
+  // Create URLs for custom overlay files
+  const customConfig: OverlayConfig = {
+    gameGetReady: customOverlays.gameReady ? URL.createObjectURL(customOverlays.gameReady) : DEFAULT_OVERLAY_CONFIG.gameGetReady,
+
+    questionReady: (questionNumber: number) => {
+      if (customOverlays.questionReady) {
+        return URL.createObjectURL(customOverlays.questionReady)
+      }
+      return DEFAULT_OVERLAY_CONFIG.questionReady(questionNumber)
+    },
+
+    timeStarts: customOverlays.timeStarts ? URL.createObjectURL(customOverlays.timeStarts) : DEFAULT_OVERLAY_CONFIG.timeStarts,
+    countdown: customOverlays.countdown ? URL.createObjectURL(customOverlays.countdown) : DEFAULT_OVERLAY_CONFIG.countdown,
+    timeUpFetching: customOverlays.timeUpFetching ? URL.createObjectURL(customOverlays.timeUpFetching) : DEFAULT_OVERLAY_CONFIG.timeUpFetching,
+    leaderboard: customOverlays.leaderboard ? URL.createObjectURL(customOverlays.leaderboard) : DEFAULT_OVERLAY_CONFIG.leaderboard
+  }
+
+  return customConfig
 }
 
 /**

@@ -16,7 +16,7 @@ This directory should contain the following overlay video files for the video co
 
 ## Timing and Countdown Videos
 - `question_time_starts.gif` - Shown after each question video, before countdown
-- `question_countdown.gif` - Countdown timer video
+- `question_countdown.mp4` - Countdown timer video
 - `time_up_fetching.gif` - Shown when time is up, fetching results
 - `question_leaderboard.gif` - Results/leaderboard display
 
@@ -25,7 +25,7 @@ For each question, the sequence is:
 1. Question Ready Video (question_<number>.gif)
 2. Uploaded question video
 3. Time Starts Video (question_time_starts.gif)
-4. Countdown Video (question_countdown.gif)
+4. Countdown Video (question_countdown.mp4)
 5. Time Up Fetching Video (time_up_fetching.gif)
 6. Leaderboard Video (question_leaderboard.gif)
 
@@ -39,7 +39,7 @@ For each question, the sequence is:
 You can use any combination of formats:
 - `game_get_ready.mp4`
 - `question_one.mov`
-- `question_countdown.gif`
+- `question_countdown.mp4`
 - `question_leaderboard.webm`
 
 ## Customization

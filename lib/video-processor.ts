@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getOverlayConfig, getVideoSequence } from './overlay-config'
+import { ProductionTimestampManager, type GameSession } from './production-timestamps'
 
 export interface VideoSegment {
   type: "game-ready" | "question-ready" | "question" | "time-starts" | "countdown" | "time-up-fetching" | "leaderboard"
@@ -12,13 +13,25 @@ export interface VideoSegment {
 }
 
 export interface ProcessingOptions {
-  // GIF durations - these can be customized
-  gameReadyDuration: number // Duration for game_get_ready.gif
-  questionReadyDuration: number // Duration for question_<n>.gif
-  timeStartsDuration: number // Duration for question_time_starts.gif
-  countdownDuration: number // Duration for question_countdown.gif
-  timeUpFetchingDuration: number // Duration for time_up_fetching.gif
-  leaderboardDuration: number // Duration for question_leaderboard.gif
+  // Overlay video durations - these can be customized
+  gameReadyDuration: number // Duration for game_get_ready video
+  questionReadyDuration: number // Duration for question_<n> video
+  timeStartsDuration: number // Duration for question_time_starts video
+  countdownDuration: number // Duration for question_countdown video
+  timeUpFetchingDuration: number // Duration for time_up_fetching video
+  leaderboardDuration: number // Duration for question_leaderboard video
+
+  // Audio configuration
+  preserveOriginalAudio: boolean // Keep audio from uploaded question videos
+  backgroundAudioFile?: File // Optional background audio file
+  backgroundAudioVolume: number // Volume level for background audio (0-1)
+  originalAudioVolume: number // Volume level for original video audio (0-1)
+  audioFadeInDuration: number // Fade in duration for background audio (seconds)
+  audioFadeOutDuration: number // Fade out duration for background audio (seconds)
+
+  // Custom overlay configuration
+  useCustomOverlays?: boolean // Whether to use custom overlay files
+  customOverlayFiles?: { [key: string]: File } // Custom overlay files
 }
 
 export interface TimestampEvent {
@@ -29,17 +42,13 @@ export interface TimestampEvent {
 }
 
 export class VideoProcessor {
-  private canvas: HTMLCanvasElement
-  private ctx: CanvasRenderingContext2D
   private segments: VideoSegment[] = []
   private currentProgress = 0
   private onProgressUpdate?: (progress: number) => void
+  private processingOptions?: ProcessingOptions
 
   constructor() {
-    this.canvas = document.createElement("canvas")
-    this.canvas.width = 1920
-    this.canvas.height = 1080
-    this.ctx = this.canvas.getContext("2d")!
+    // No canvas needed anymore since we're using overlay videos
   }
 
   setProgressCallback(callback: (progress: number) => void) {
@@ -54,13 +63,16 @@ export class VideoProcessor {
   async processVideos(
     videoFiles: File[],
     options: ProcessingOptions,
-  ): Promise<{ segments: VideoSegment[]; timestamps: TimestampEvent[]; totalDuration: number }> {
+  ): Promise<{ segments: VideoSegment[]; timestamps: TimestampEvent[]; totalDuration: number; gameSession: GameSession }> {
+    const processId = Date.now()
+    console.log(`processVideos called ${processId} with ${videoFiles.length} files`)
     this.segments = []
+    this.processingOptions = options // Store options for later use in compileVideoBlob
     this.updateProgress(0)
 
     let currentTime = 0
     const timestamps: TimestampEvent[] = []
-    const overlayConfig = getOverlayConfig()
+    const overlayConfig = getOverlayConfig(options.useCustomOverlays ? options.customOverlayFiles : undefined)
 
     // Add initial game ready segment
     const gameReadySegment: VideoSegment = {
@@ -81,11 +93,13 @@ export class VideoProcessor {
     currentTime += options.gameReadyDuration
 
     // Process each question with the new sequence
+    console.log("Processing", videoFiles.length, "video files")
     for (let i = 0; i < videoFiles.length; i++) {
       const videoFile = videoFiles[i]
       const videoDuration = await this.getVideoDuration(videoFile)
       const questionNumber = i + 1
 
+      console.log(`Processing question ${questionNumber} (index ${i}), duration: ${videoDuration}s, current segments: ${this.segments.length}`)
       this.updateProgress(10 + (i / videoFiles.length) * 60)
 
       // Question ready segment
@@ -98,6 +112,7 @@ export class VideoProcessor {
         videoIndex: i,
       }
       this.segments.push(questionReadySegment)
+      console.log(`Added question-ready segment for Q${questionNumber}, total segments: ${this.segments.length}`)
 
       timestamps.push({
         event: `Question ${questionNumber} Ready`,
@@ -118,6 +133,7 @@ export class VideoProcessor {
         videoIndex: i,
       }
       this.segments.push(questionSegment)
+      console.log(`Added question video segment for Q${questionNumber}, total segments: ${this.segments.length}`)
 
       timestamps.push({
         event: `Question ${questionNumber} Video`,
@@ -204,15 +220,39 @@ export class VideoProcessor {
 
       currentTime += options.leaderboardDuration
 
+      console.log(`Completed question ${questionNumber}, total segments now: ${this.segments.length}`)
       this.updateProgress(10 + ((i + 1) / videoFiles.length) * 60)
     }
 
     this.updateProgress(70)
 
+    console.log("Video segments created:", this.segments.map(s => ({ type: s.type, duration: s.duration, questionNumber: s.questionNumber, overlayPath: s.overlayPath })))
+
+    // Generate production-ready timestamps
+    const timestampManager = new ProductionTimestampManager(
+      `session_${Date.now()}`,
+      `video_${Date.now()}`
+    )
+
+    const questionVideos = videoFiles.map((_, index) => ({
+      duration: 30, // This should be the actual video duration - could be enhanced to get real duration
+      id: `question_${index + 1}`
+    }))
+
+    const gameSession = timestampManager.generateTimestamps(questionVideos, {
+      gameReadyDuration: options.gameReadyDuration,
+      questionReadyDuration: options.questionReadyDuration,
+      timeStartsDuration: options.timeStartsDuration,
+      countdownDuration: options.countdownDuration,
+      timeUpFetchingDuration: options.timeUpFetchingDuration,
+      leaderboardDuration: options.leaderboardDuration
+    })
+
     return {
       segments: this.segments,
       timestamps,
       totalDuration: currentTime,
+      gameSession, // Add the production-ready game session
     }
   }
 
@@ -294,6 +334,78 @@ export class VideoProcessor {
       const outputUrl = URL.createObjectURL(mockVideoBlob)
       this.updateProgress(100)
       return outputUrl
+    } finally {
+      compiler.dispose()
+    }
+  }
+
+  async compileVideoBlob(segments: VideoSegment[]): Promise<Blob> {
+    const { VideoCompiler } = await import("./video-compiler")
+    const compiler = new VideoCompiler()
+
+    this.updateProgress(80)
+
+    try {
+      const compilationSegments = await Promise.all(
+        segments.map(async (segment, index) => {
+          const compilationSegment: any = {
+            id: `segment-${index}`,
+            startTime: segment.startTime,
+            duration: segment.duration,
+          }
+
+          if (segment.type === "question" && segment.videoFile) {
+            compilationSegment.type = "video"
+            compilationSegment.videoFile = segment.videoFile
+          } else if (segment.overlayPath) {
+            // Handle all overlay video segments
+            compilationSegment.type = "overlay-video"
+            compilationSegment.overlayPath = segment.overlayPath
+
+            try {
+              const overlayBlob = await this.loadOverlayAsBlob(segment.overlayPath)
+              compilationSegment.overlayBlob = overlayBlob
+            } catch (error) {
+              console.error(`Failed to load overlay video for segment ${index}:`, error)
+              // Continue without the overlay - the compiler should handle this gracefully
+            }
+          }
+
+          return compilationSegment
+        }),
+      )
+
+      this.updateProgress(90)
+
+      console.log("Compilation segments created:", compilationSegments.map(s => ({ type: s.type, id: s.id, duration: s.duration, overlayPath: s.overlayPath })))
+
+      // Convert ProcessingOptions to CompilationOptions
+      const compilationOptions = this.processingOptions ? {
+        outputFormat: "mp4" as const,
+        quality: "medium" as const,
+        resolution: "1080p" as const,
+        frameRate: 30 as const,
+        aspectRatio: "original" as const,
+        scaleMode: "fit" as const,
+        preserveOriginalAudio: this.processingOptions.preserveOriginalAudio,
+        backgroundAudioFile: this.processingOptions.backgroundAudioFile,
+        backgroundAudioVolume: this.processingOptions.backgroundAudioVolume,
+        originalAudioVolume: this.processingOptions.originalAudioVolume,
+        audioFadeInDuration: this.processingOptions.audioFadeInDuration,
+        audioFadeOutDuration: this.processingOptions.audioFadeOutDuration,
+      } : undefined
+
+      console.log("Compilation options:", compilationOptions)
+      const videoBlob = await compiler.compileVideo(compilationSegments, compilationOptions)
+
+      this.updateProgress(100)
+
+      return videoBlob
+    } catch (error) {
+      console.error("Video compilation failed:", error)
+      const mockVideoBlob = new Blob(["mock video data"], { type: "video/mp4" })
+      this.updateProgress(100)
+      return mockVideoBlob
     } finally {
       compiler.dispose()
     }

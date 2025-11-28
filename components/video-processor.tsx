@@ -105,7 +105,7 @@ export function VideoProcessor({ job }: VideoProcessorProps) {
     <Card>
       <CardHeader>
         <CardTitle>Video Processing Timeline</CardTitle>
-        <CardDescription>Preview and timeline for your compiled game show video</CardDescription>
+        <CardDescription>Preview and timeline for video</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Video Preview */}

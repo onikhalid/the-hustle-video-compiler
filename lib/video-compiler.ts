@@ -20,11 +20,18 @@ export interface CompilationOptions {
   quality: "low" | "medium" | "high" | "ultra"
   resolution: "720p" | "1080p" | "4k"
   frameRate: 24 | 30 | 60
-  audioEnabled: boolean
   aspectRatio?: "original" | "16:9" | "9:16" | "4:5" | "5:4" | "1:1" | "custom"
   customWidth?: number
   customHeight?: number
   scaleMode?: "fit" | "fill" | "stretch"
+
+  // Enhanced audio options
+  preserveOriginalAudio: boolean
+  backgroundAudioFile?: File
+  backgroundAudioVolume: number
+  originalAudioVolume: number
+  audioFadeInDuration: number
+  audioFadeOutDuration: number
 }
 
 export interface CompilationProgress {
@@ -34,16 +41,22 @@ export interface CompilationProgress {
   totalSegments: number
   message: string
   timeRemaining?: number
+  segmentProgress?: number // Progress within current segment (0-100)
+  segmentName?: string // Name of current segment being processed
+  timeElapsed?: number // Time elapsed in seconds
+  estimatedTimeRemaining?: number // Estimated time remaining in seconds
 }
 
 export class VideoCompiler {
   private ffmpeg: FFmpeg
   private isInitialized = false
   private onProgressUpdate?: (progress: CompilationProgress) => void
+  private startTime: number = 0
+  private segmentStartTime: number = 0
 
   constructor() {
     this.ffmpeg = new FFmpeg()
-    console.log("[v0] FFmpeg-based video compiler initialized")
+    console.log("  FFmpeg-based video compiler initialized")
   }
 
   setProgressCallback(callback: (progress: CompilationProgress) => void) {
@@ -63,6 +76,34 @@ export class VideoCompiler {
     }
   }
 
+  private getSegmentName(segment: CompilationSegment, index: number): string {
+    if (segment.type === "video") {
+      return `Question Video ${index + 1}`
+    } else if (segment.type === "overlay-video") {
+      // Try to determine overlay type from file path or use generic name
+      if (segment.overlayPath) {
+        if (segment.overlayPath.includes('game_get_ready')) return 'Game Get Ready'
+        if (segment.overlayPath.includes('question_one') || segment.overlayPath.includes('question_two')) return 'Question Ready'
+        if (segment.overlayPath.includes('time_starts')) return 'Time Starts'
+        if (segment.overlayPath.includes('countdown')) return 'Countdown'
+        if (segment.overlayPath.includes('time_up')) return 'Time Up'
+        if (segment.overlayPath.includes('leaderboard')) return 'Leaderboard'
+      }
+      return `Overlay ${index + 1}`
+    }
+    return `Segment ${index + 1}`
+  }
+
+  private calculateEstimatedTime(currentIndex: number, totalSegments: number): number {
+    if (currentIndex === 0) return 0
+
+    const timeElapsed = (Date.now() - this.startTime) / 1000
+    const averageTimePerSegment = timeElapsed / currentIndex
+    const remainingSegments = totalSegments - currentIndex
+
+    return Math.round(averageTimePerSegment * remainingSegments)
+  }
+
   async initialize(): Promise<void> {
     if (this.isInitialized) return
 
@@ -76,12 +117,12 @@ export class VideoCompiler {
     try {
       const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd"
 
-      console.log("[v0] Loading FFmpeg from:", baseURL)
+      console.log("  Loading FFmpeg from:", baseURL)
 
       const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript")
       const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm")
 
-      console.log("[v0] Created blob URLs - Core:", coreURL.substring(0, 50), "... WASM:", wasmURL.substring(0, 50))
+      console.log("  Created blob URLs - Core:", coreURL.substring(0, 50), "... WASM:", wasmURL.substring(0, 50))
 
       await this.ffmpeg.load({
         coreURL,
@@ -91,9 +132,9 @@ export class VideoCompiler {
       // Set up global logging for all FFmpeg operations
       this.ffmpeg.on("log", ({ type, message }) => {
         if (type === "fferr" || message.includes("Error") || message.includes("error")) {
-          console.error(`[v0] FFmpeg Error: ${message}`)
+          console.error(`  FFmpeg Error: ${message}`)
         } else {
-          console.log(`[v0] FFmpeg: ${message}`)
+          console.log(`  FFmpeg: ${message}`)
         }
       })
 
@@ -101,7 +142,7 @@ export class VideoCompiler {
       await this.loadDefaultFont()
 
       this.isInitialized = true
-      console.log("[v0] FFmpeg loaded successfully")
+      console.log("  FFmpeg loaded successfully")
 
       this.updateProgress({
         stage: "initializing",
@@ -110,7 +151,7 @@ export class VideoCompiler {
         totalSegments: 0,
       })
     } catch (error) {
-      console.error("[v0] FFmpeg initialization failed:", error)
+      console.error("  FFmpeg initialization failed:", error)
       this.updateProgress({
         stage: "error",
         progress: 0,
@@ -129,12 +170,12 @@ export class VideoCompiler {
       if (response.ok) {
         const fontData = await response.arrayBuffer()
         await this.ffmpeg.writeFile("default_font.ttf", new Uint8Array(fontData))
-        console.log("[v0] Default font loaded successfully")
+        console.log("  Default font loaded successfully")
       } else {
-        console.warn("[v0] Could not load default font, will use system default")
+        console.warn("  Could not load default font, will use system default")
       }
     } catch (error) {
-      console.warn("[v0] Font loading failed, text rendering will use system default:", error)
+      console.warn("  Font loading failed, text rendering will use system default:", error)
     }
   }
 
@@ -145,12 +186,21 @@ export class VideoCompiler {
       quality: "medium",
       resolution: "1080p",
       frameRate: 30,
-      audioEnabled: true,
+
       aspectRatio: "original",
       scaleMode: "fit",
+      preserveOriginalAudio: true,
+      backgroundAudioVolume: 0.1, // Very subtle background audio
+      originalAudioVolume: 1.0,
+      audioFadeInDuration: 2,
+      audioFadeOutDuration: 2,
     },
   ): Promise<Blob> {
-    console.log("[v0] Starting FFmpeg video compilation with", segments.length, "segments")
+    const compilationId = Date.now()
+    console.log(`[v0] Starting FFmpeg video compilation ${compilationId} with`, segments.length, "segments")
+    console.log("[v0] Audio options - preserveOriginal:", options.preserveOriginalAudio, "originalVolume:", options.originalAudioVolume)
+
+    this.startTime = Date.now()
 
     if (!this.isInitialized) {
       await this.initialize()
@@ -161,25 +211,33 @@ export class VideoCompiler {
       progress: 0,
       message: `Preparing ${segments.length} video segments...`,
       totalSegments: segments.length,
+      timeElapsed: 0,
     })
 
     try {
       const outputDimensions = await this.calculateOutputDimensions(segments, options)
-      console.log("[v0] Output dimensions:", outputDimensions)
+      console.log("  Output dimensions:", outputDimensions)
 
       // Process segments one by one to avoid filesystem issues
       const processedFiles: string[] = []
-      
+
       for (let i = 0; i < segments.length; i++) {
         const segment = segments[i]
         const outputFilename = `processed_${i}.mp4`
-        
+
+        this.segmentStartTime = Date.now()
+        const segmentName = this.getSegmentName(segment, i)
+
         this.updateProgress({
           stage: "processing",
           progress: 10 + (i / segments.length) * 60,
-          message: `Processing segment ${i + 1}/${segments.length}...`,
+          message: `Processing ${segmentName}...`,
           totalSegments: segments.length,
           currentSegment: i + 1,
+          segmentProgress: 0,
+          segmentName,
+          timeElapsed: (Date.now() - this.startTime) / 1000,
+          estimatedTimeRemaining: this.calculateEstimatedTime(i, segments.length),
         })
 
         try {
@@ -188,34 +246,34 @@ export class VideoCompiler {
           } else if (segment.type === "overlay-video") {
             await this.processOverlaySegment(segment, outputFilename, outputDimensions, options)
           }
-          
+
           // Verify the file was created and has content
           const fileData = await this.ffmpeg.readFile(outputFilename)
           if (fileData.length === 0) {
             throw new Error(`FFmpeg produced empty file for segment ${i + 1}`)
           }
-          
+
           processedFiles.push(outputFilename)
-          console.log(`[v0] Successfully processed segment ${i + 1}, size: ${fileData.length} bytes`)
-          
+          console.log(`  Successfully processed segment ${i + 1}, size: ${fileData.length} bytes`)
+
         } catch (segmentError) {
-          console.error(`[v0] Failed to process segment ${i + 1}:`, segmentError)
-          
+          console.error(`  Failed to process segment ${i + 1}:`, segmentError)
+
           // Try a super simple fallback for this segment
           try {
-            console.log(`[v0] Attempting simple fallback for segment ${i + 1}`)
+            console.log(`  Attempting simple fallback for segment ${i + 1}`)
             await this.createSimpleFallbackSegment(segment, outputFilename, outputDimensions, options)
-            
+
             const fallbackData = await this.ffmpeg.readFile(outputFilename)
             if (fallbackData.length > 0) {
               processedFiles.push(outputFilename)
-              console.log(`[v0] Fallback successful for segment ${i + 1}`)
+              console.log(`  Fallback successful for segment ${i + 1}`)
               continue // Move to next segment
             }
           } catch (fallbackError) {
-            console.error(`[v0] Fallback also failed for segment ${i + 1}:`, fallbackError)
+            console.error(`  Fallback also failed for segment ${i + 1}:`, fallbackError)
           }
-          
+
           // Clean up any partial files
           await this.cleanupFiles(processedFiles)
           throw new Error(`Failed to process segment ${i + 1}: ${segmentError instanceof Error ? segmentError.message : String(segmentError)}`)
@@ -230,7 +288,7 @@ export class VideoCompiler {
       })
 
       // Use file concatenation method which is more reliable
-      await this.concatenateFiles(processedFiles, "final_output.mp4")
+      await this.concatenateFiles(processedFiles, "final_output.mp4", options)
 
       this.updateProgress({
         stage: "finalizing",
@@ -253,18 +311,18 @@ export class VideoCompiler {
         totalSegments: segments.length,
       })
 
-      console.log("[v0] Video compilation completed successfully - Final blob size:", outputBlob.size)
+      console.log(`[v0] Video compilation ${compilationId} completed successfully - Final blob size:`, outputBlob.size)
       return outputBlob
 
     } catch (error) {
-      console.error("[v0] Compilation failed:", error)
-      
+      console.error("  Compilation failed:", error)
+
       // Try to clean up any remaining files
       try {
         const files = await this.ffmpeg.listDir("/")
-        console.log("[v0] Files in virtual filesystem during error:", files)
+        console.log("  Files in virtual filesystem during error:", files)
       } catch (listError) {
-        console.error("[v0] Could not list files during cleanup:", listError)
+        console.error("  Could not list files during cleanup:", listError)
       }
 
       this.updateProgress({
@@ -284,24 +342,24 @@ export class VideoCompiler {
     options: CompilationOptions
   ): Promise<void> {
     const inputFilename = `input_${Date.now()}.mp4`
-    
+
     try {
       // Write input file
       const arrayBuffer = await segment.videoFile!.arrayBuffer()
-      console.log(`[v0] Writing video file: ${inputFilename}, original size: ${arrayBuffer.byteLength} bytes`)
+      console.log(`  Writing video file: ${inputFilename}, original size: ${arrayBuffer.byteLength} bytes`)
       await this.ffmpeg.writeFile(inputFilename, new Uint8Array(arrayBuffer))
-      
+
       // Verify input file was written
       const inputData = await this.ffmpeg.readFile(inputFilename)
-      console.log(`[v0] Input file written: ${inputFilename}, size: ${inputData.length} bytes`)
-      
+      console.log(`  Input file written: ${inputFilename}, size: ${inputData.length} bytes`)
+
       if (inputData.length === 0) {
         throw new Error("Failed to write input video file")
       }
 
       // Try simple copy first, then scaling if needed
       let args: string[]
-      
+
       if (segment.duration) {
         // With duration limit and scaling
         args = [
@@ -313,7 +371,6 @@ export class VideoCompiler {
           "-crf", "28", // Higher CRF for faster processing
           "-pix_fmt", "yuv420p",
           "-r", options.frameRate.toString(),
-          "-an",
           "-avoid_negative_ts", "make_zero",
           "-y",
           outputFilename
@@ -328,31 +385,48 @@ export class VideoCompiler {
           "-crf", "28",
           "-pix_fmt", "yuv420p",
           "-r", options.frameRate.toString(),
-          "-an",
+          "-avoid_negative_ts", "make_zero",
           "-y",
           outputFilename
         ]
       }
 
-      console.log(`[v0] Processing video segment with command:`, args.join(" "))
-      
+      // Handle audio - ALWAYS include an audio stream with consistent parameters
+      if (options.preserveOriginalAudio) {
+        console.log("[v0] Preserving audio for video segment with volume:", options.originalAudioVolume)
+        // Add audio codec and bitrate before the output filename
+        args.splice(-2, 0, "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2")
+
+        // Add volume adjustment if needed
+        if (options.originalAudioVolume !== 1.0) {
+          args.splice(-6, 0, "-af", `volume=${options.originalAudioVolume}`)
+        }
+      } else {
+        console.log("[v0] Creating silent audio track for video segment (preserveOriginal:", options.preserveOriginalAudio, ")")
+        // Generate silent audio instead of removing audio completely
+        // This ensures all segments have consistent audio streams for concatenation
+        args.splice(-2, 0, "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2", "-shortest")
+      }
+
+      console.log(`  Processing video segment with command:`, args.join(" "))
+
       await this.ffmpeg.exec(args)
-      
+
       // Verify output was created
       try {
         const outputData = await this.ffmpeg.readFile(outputFilename)
-        console.log(`[v0] Video segment processed successfully: ${outputFilename}, size: ${outputData.length} bytes`)
-        
+        console.log(`  Video segment processed successfully: ${outputFilename}, size: ${outputData.length} bytes`)
+
         if (outputData.length === 0) {
           throw new Error("FFmpeg produced empty output file")
         }
       } catch (readError) {
-        console.error(`[v0] Failed to read output file ${outputFilename}:`, readError)
+        console.error(`  Failed to read output file ${outputFilename}:`, readError)
         throw new Error("Failed to create output video file")
       }
 
     } catch (error) {
-      console.error(`[v0] Video segment processing failed:`, error)
+      console.error(`  Video segment processing failed:`, error)
       throw error
     } finally {
       // Clean up input file
@@ -366,7 +440,7 @@ export class VideoCompiler {
     outputDimensions: { width: number; height: number },
     options: CompilationOptions
   ): Promise<void> {
-    console.log(`[v0] Processing overlay segment: ${segment.overlayPath}, duration: ${segment.duration}s`)
+    console.log(`  Processing overlay segment: ${segment.overlayPath}, duration: ${segment.duration}s`)
 
     try {
       let overlayData: Uint8Array
@@ -387,17 +461,20 @@ export class VideoCompiler {
         throw new Error("No overlay video source provided")
       }
 
-      // Determine file extension from path or default to mp4
-      const extension = segment.overlayPath?.split('.').pop() || 'mp4'
-      const inputFilename = `overlay_input_${Date.now()}.${extension}`
+      // Determine file extension from path or default to mp4 (sanitize query/hash)
+      const rawExt = segment.overlayPath?.split('.').pop() || 'mp4'
+      const cleanExt = rawExt.split('?')[0].split('#')[0].toLowerCase()
+      const extension = /^(mp4|mov|webm|mkv|gif|webp)$/.test(cleanExt) ? cleanExt : 'mp4'
+      const inputFilename = `overlay_input_${Date.now()}_${Math.floor(Math.random()*1e6)}.${extension}`
 
       // Write the overlay video file to FFmpeg's virtual filesystem
       await this.ffmpeg.writeFile(inputFilename, overlayData)
-      console.log(`[v0] Written overlay file: ${inputFilename}, size: ${overlayData.length} bytes`)
+      console.log(`  Written overlay file: ${inputFilename}, size: ${overlayData.length} bytes`)
 
-      // Convert overlay video to specified duration and dimensions
+      // Convert overlay video to specified duration and dimensions with guaranteed audio
       const args = [
         "-i", inputFilename,
+        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
         "-vf", `scale=${outputDimensions.width}:${outputDimensions.height}:force_original_aspect_ratio=decrease,pad=${outputDimensions.width}:${outputDimensions.height}:(ow-iw)/2:(oh-ih)/2:black`,
         "-t", segment.duration.toString(),
         "-c:v", "libx264",
@@ -405,18 +482,22 @@ export class VideoCompiler {
         "-crf", "28",
         "-pix_fmt", "yuv420p",
         "-r", options.frameRate.toString(),
-        "-an", // Remove audio
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-ar", "48000",
+        "-ac", "2",
+        "-shortest",
         "-avoid_negative_ts", "make_zero",
         "-y",
         outputFilename
       ]
 
-      console.log(`[v0] Processing overlay video with command:`, args.join(" "))
+      console.log(`  Processing overlay video with command:`, args.join(" "))
       await this.ffmpeg.exec(args)
 
       // Verify output was created
       const outputData = await this.ffmpeg.readFile(outputFilename)
-      console.log(`[v0] Overlay segment processed successfully: ${outputFilename}, size: ${outputData.length} bytes`)
+      console.log(`  Overlay segment processed successfully: ${outputFilename}, size: ${outputData.length} bytes`)
 
       if (outputData.length === 0) {
         throw new Error("FFmpeg produced empty output file for overlay video")
@@ -426,7 +507,7 @@ export class VideoCompiler {
       await this.safeDeleteFile(inputFilename)
 
     } catch (error) {
-      console.error(`[v0] Overlay segment processing failed:`, error)
+      console.error(`  Overlay segment processing failed:`, error)
       throw error
     }
   }
@@ -439,30 +520,93 @@ export class VideoCompiler {
 
 
 
-  private async concatenateFiles(inputFiles: string[], outputFilename: string): Promise<void> {
+  private async concatenateFiles(inputFiles: string[], outputFilename: string, options: CompilationOptions): Promise<void> {
     // Create file list for concatenation
     const fileList = inputFiles.map(file => `file '${file}'`).join('\n')
     await this.ffmpeg.writeFile("file_list.txt", new TextEncoder().encode(fileList))
 
-    const args = [
-      "-f", "concat",
-      "-safe", "0",
-      "-i", "file_list.txt",
-      "-c", "copy", // Copy streams without re-encoding for speed
-      "-y",
-      outputFilename
-    ]
+    let args: string[]
 
-    console.log(`[v0] Concatenating files with command:`, args.join(" "))
-    await this.ffmpeg.exec(args)
+    if (options.backgroundAudioFile) {
+      // Handle background audio mixing
+      const backgroundAudioFilename = `background_audio_${Date.now()}.mp3`
+
+      try {
+        // Write background audio file
+        const audioArrayBuffer = await options.backgroundAudioFile.arrayBuffer()
+        await this.ffmpeg.writeFile(backgroundAudioFilename, new Uint8Array(audioArrayBuffer))
+
+        // Complex filter for mixing background audio with video
+        const audioFilter = options.preserveOriginalAudio
+          ? `[1:a]volume=${options.backgroundAudioVolume}[bg];[0:a]volume=${options.originalAudioVolume}[orig];[bg][orig]amix=inputs=2:duration=first:dropout_transition=0[mixed]`
+          : `[1:a]volume=${options.backgroundAudioVolume}[mixed]`
+
+        args = [
+          "-f", "concat",
+          "-safe", "0",
+          "-i", "file_list.txt",
+          "-i", backgroundAudioFilename,
+          "-filter_complex", audioFilter,
+          "-map", "0:v",
+          "-map", "[mixed]",
+          "-c:v", "copy",
+          "-c:a", "aac",
+          "-b:a", "128k",
+          "-shortest",
+          "-y",
+          outputFilename
+        ]
+
+        console.log(`  Concatenating with background audio:`, args.join(" "))
+        await this.ffmpeg.exec(args)
+
+        // Clean up background audio file
+        await this.safeDeleteFile(backgroundAudioFilename)
+
+      } catch (error) {
+        console.error("  Background audio processing failed, falling back to simple concatenation:", error)
+        await this.safeDeleteFile(backgroundAudioFilename)
+
+        // Fixed fallback - re-encode audio instead of copy
+        args = [
+          "-f", "concat",
+          "-safe", "0",
+          "-i", "file_list.txt",
+          "-c:v", "copy",
+          "-c:a", "aac",
+          "-b:a", "128k",
+          "-y",
+          outputFilename
+        ]
+        await this.ffmpeg.exec(args)
+      }
+    } else {
+      // Simple concatenation with proper audio handling
+      args = [
+        "-f", "concat",
+        "-safe", "0",
+        "-i", "file_list.txt",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-ar", "48000",
+        "-ac", "2",
+        "-y",
+        outputFilename
+      ]
+
+      console.log(`[v0] Concatenating files with command:`, args.join(" "))
+      await this.ffmpeg.exec(args)
+    }
   }
 
+  
   private async safeDeleteFile(filename: string): Promise<void> {
     try {
       await this.ffmpeg.deleteFile(filename)
-      console.log(`[v0] Deleted file: ${filename}`)
+      console.log(`  Deleted file: ${filename}`)
     } catch (error) {
-      console.warn(`[v0] Could not delete file ${filename}:`, error)
+      console.warn(`  Could not delete file ${filename}:`, error)
     }
   }
 
@@ -472,24 +616,26 @@ export class VideoCompiler {
     outputDimensions: { width: number; height: number },
     options: CompilationOptions
   ): Promise<void> {
-    console.log(`[v0] Creating simple fallback for segment type: ${segment.type}`)
+    console.log(`  Creating simple fallback for segment type: ${segment.type}`)
 
     if (segment.type === "video" && segment.videoFile) {
       // Super simple video processing - just copy and hope for the best
-      const inputFilename = `fallback_input_${Date.now()}.mp4`
+      const inputFilename = `fallback_input_${Date.now()}_${Math.floor(Math.random()*1e6)}.mp4`
 
       try {
         const arrayBuffer = await segment.videoFile.arrayBuffer()
         await this.ffmpeg.writeFile(inputFilename, new Uint8Array(arrayBuffer))
 
-        // Most basic video processing possible
+        // Most basic video processing possible with silent audio
         const args = [
           "-i", inputFilename,
+          "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
           "-c:v", "libx264",
           "-preset", "ultrafast",
           "-crf", "30", // Lower quality for speed
           "-pix_fmt", "yuv420p",
-          "-an", // Remove audio
+          "-c:a", "aac", "-b:a", "128k",
+          "-shortest", // Match video duration
           "-t", "5", // Limit to 5 seconds max
           "-y",
           outputFilename
@@ -508,10 +654,13 @@ export class VideoCompiler {
       const args = [
         "-f", "lavfi",
         "-i", `color=c=blue:s=${outputDimensions.width}x${outputDimensions.height}:d=${duration}:r=${options.frameRate}`,
+        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
         "-c:v", "libx264",
         "-preset", "ultrafast",
         "-crf", "30",
         "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "128k",
+        "-shortest", // Match video duration
         "-t", duration.toString(),
         "-y",
         outputFilename
@@ -541,8 +690,8 @@ export class VideoCompiler {
         try {
           const videoInfo = await this.getVideoInfo(firstVideoSegment.videoFile)
           return { width: videoInfo.width, height: videoInfo.height }
-        } catch (error) {
-          console.warn("[v0] Could not get video info, using default dimensions")
+        } catch {
+          console.warn("  Could not get video info, using default dimensions")
         }
       }
     }
@@ -607,6 +756,6 @@ export class VideoCompiler {
   }
 
   dispose(): void {
-    console.log("[v0] FFmpeg video compiler disposed")
+    console.log("  FFmpeg video compiler disposed")
   }
 }
