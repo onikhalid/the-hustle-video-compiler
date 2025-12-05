@@ -1,4 +1,4 @@
-import { tokenlessAxios } from "@/lib/axios";
+import { gameAxios, tokenlessAxios } from "@/lib/axios";
 import { useMutation } from "@tanstack/react-query";
 
 export interface StartLiveSessionArgs {
@@ -6,7 +6,7 @@ export interface StartLiveSessionArgs {
 }
 
 const startLiveSession = async ({ sessionId }: StartLiveSessionArgs) => {
-  const res = await tokenlessAxios.post(
+  const res = await gameAxios.post(
     `/live-streams/start_live_session/${sessionId}`
   );
   return res.data as { status: string };

@@ -38,7 +38,7 @@ export function MQTTProvider({ children, enableGlobalWildcard = true }: MQTTProv
   const username = process.env.NEXT_PUBLIC_MQTT_USERNAME
   const password = process.env.NEXT_PUBLIC_MQTT_PASSWORD
   const protocol = process.env.NEXT_PUBLIC_MQTT_PROTOCOL as MqttProtocol
-  const connectUrl = `${protocol}://${broker}:${port}`
+  const connectUrl = `${protocol}://${broker}:${port}/mqtt`
 
   const [isConnected, setIsConnected] = useState(false)
   const clientRef = useRef<MqttClient | null>(null)
