@@ -70,13 +70,23 @@ export function VideoConfiguration({ videos, configuration, onConfigurationChang
   }
 
   const handleCustomOverlayUpload = (overlayType: string, file: File | null) => {
-    setConfig(prev => ({
-      ...prev,
-      customOverlayFiles: {
-        ...prev.customOverlayFiles,
-        [overlayType]: file
-      }
-    }))
+    if (file) {
+      setConfig(prev => ({
+        ...prev,
+        customOverlayFiles: {
+          ...prev.customOverlayFiles,
+          [overlayType]: file
+        }
+      }))
+    } else {
+      setConfig(prev => {
+        const { [overlayType]: _, ...restFiles } = prev.customOverlayFiles || {};
+        return {
+          ...prev,
+          customOverlayFiles: restFiles
+        }
+      })
+    }
   }
 
   const overlayTypes = [
