@@ -27,13 +27,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <AllProviders>
-        <Suspense fallback={<div>Loading...</div>}>
-          <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-          >
-            {children}
-          </body>
-        </Suspense>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        >
+          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        </body>
       </AllProviders>
     </html>
   );

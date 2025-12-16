@@ -2,20 +2,26 @@
 
 import React, { useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+
 import {
   useStartQuizGame,
   useRequestNextQuestion,
   useStartQuestionTime,
   useRetrieveQuiz,
   useElapseQuestionTime,
+  useQuizStartDetails,
 } from "../misc/api/quizHostApi";
 import { getQuestionResultsTally } from "../misc/api/quizHostApi";
+
+import { useIVSBroadcast } from "@/hooks/useIVSBroadcast";
 import { useMQTT } from "@/hooks/useMqttService";
 
 export default function QuizDetailPage() {
   const params = useParams();
   const router = useRouter();
   const quizId = params.quizId as string;
+
+  const { data: startDetails } = useQuizStartDetails(quizId);
 
   const [question, setQuestion] = useState<any>(null);
   const [questionIndex, setQuestionIndex] = useState<number>(1);
@@ -34,8 +40,44 @@ export default function QuizDetailPage() {
   const elapseQTime = useElapseQuestionTime();
   const { data: quizData, isLoading: loadingQuiz } = useRetrieveQuiz(quizId);
 
+  const { startBroadcast, stopBroadcast } = useIVSBroadcast();
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+
   // Helper: log events
   const addLog = (msg: string) => setLog((prev) => [msg, ...prev.slice(0, 9)]);
+
+  const handleGoLive = async () => {
+    if (!previewCanvasRef.current) {
+      addLog("Preview unavailable. Try reloading the page.");
+      return;
+    }
+
+    const ingestServer = startDetails?.data?.ingest_server;
+    const streamKey = startDetails?.data?.stream_key;
+
+    if (!ingestServer || !streamKey) {
+      addLog("Stream credentials missing. Check quiz settings.");
+      return;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+
+      const camera = devices.find((d) => d.kind === "videoinput");
+      const mic = devices.find((d) => d.kind === "audioinput");
+
+      if (!camera || !mic) {
+        alert("Camera or microphone not found");
+        return;
+      }
+
+      await startBroadcast(ingestServer, streamKey, previewCanvasRef.current);
+      addLog("Broadcast started");
+    } catch (err) {
+      console.error(err);
+      addLog("Failed to start broadcast. Check console for details.");
+    }
+  };
 
   // Start quiz
   const handleStartQuiz = async () => {
@@ -266,6 +308,30 @@ export default function QuizDetailPage() {
           disabled={timerRunning}
         >
           Next Question
+        </button>
+      </div>
+      <div className="w-full max-w-4xl mx-auto mb-4">
+        <div className="relative w-full rounded-lg overflow-hidden bg-black pb-[56.25%]">
+          <canvas
+            ref={previewCanvasRef}
+            className="absolute inset-0 h-full w-full"
+          />
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          onClick={handleGoLive}
+          className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold"
+        >
+          Go Live
+        </button>
+
+        <button
+          onClick={stopBroadcast}
+          className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold"
+        >
+          Stop Stream
         </button>
       </div>
 

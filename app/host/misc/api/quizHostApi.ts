@@ -107,3 +107,32 @@ export const useRetrieveQuiz = (id?: string | number) => {
     enabled: !!id,
   });
 };
+
+
+
+export interface QuizStartDetailsResponse {
+  status: string;
+  message: string;
+  data: QuizStartDetails;
+}
+
+export interface QuizStartDetails {
+  channel_arn: string;
+  ingest_server: string;
+  playback_url: string;
+  latency_mode: string;
+  stream_key: string;
+}
+
+const retrieveQuizStartDetails = async (id: string | number) => {
+  const res = await gameAxios.get(`/quiz/start/details/${id}`);
+  return res.data as QuizStartDetailsResponse;
+};
+
+export const useQuizStartDetails = (id?: string | number) => {
+  return useQuery({
+    queryFn: () => retrieveQuizStartDetails(id!),
+    queryKey: ["quiz-start-details", id],
+    enabled: !!id,
+  });
+};
