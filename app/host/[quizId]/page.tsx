@@ -10,6 +10,7 @@ import {
   useRetrieveQuiz,
   useElapseQuestionTime,
   useQuizStartDetails,
+  useStopQuizBroadcast,
 } from "../misc/api/quizHostApi";
 import { getQuestionResultsTally } from "../misc/api/quizHostApi";
 
@@ -38,6 +39,7 @@ export default function QuizDetailPage() {
   const requestQuestion = useRequestNextQuestion();
   const startQTime = useStartQuestionTime();
   const elapseQTime = useElapseQuestionTime();
+  const stopQuizBroadcast = useStopQuizBroadcast();
   const { data: quizData, isLoading: loadingQuiz } = useRetrieveQuiz(quizId);
 
   const { startBroadcast, stopBroadcast } = useIVSBroadcast();
@@ -61,14 +63,26 @@ export default function QuizDetailPage() {
     }
 
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mediaDevices = navigator.mediaDevices;
 
-      const camera = devices.find((d) => d.kind === "videoinput");
-      const mic = devices.find((d) => d.kind === "audioinput");
-
-      if (!camera || !mic) {
-        alert("Camera or microphone not found");
+      if (!mediaDevices?.getUserMedia) {
+        addLog("Media devices API unavailable on this browser.");
         return;
+      }
+
+      if (typeof mediaDevices.enumerateDevices === "function") {
+        try {
+          const devices = await mediaDevices.enumerateDevices();
+          const hasCamera = devices.some((d) => d.kind === "videoinput");
+          const hasMic = devices.some((d) => d.kind === "audioinput");
+
+          if (!hasCamera || !hasMic) {
+            addLog("Camera or microphone not reported. Attempting capture anyway.");
+          }
+        } catch (enumerateErr) {
+          console.warn("enumerateDevices failed", enumerateErr);
+          addLog("Unable to list devices. Attempting capture...");
+        }
       }
 
       await startBroadcast(ingestServer, streamKey, previewCanvasRef.current);
@@ -76,7 +90,29 @@ export default function QuizDetailPage() {
     } catch (err) {
       console.error(err);
       addLog("Failed to start broadcast. Check console for details.");
+      addLog(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const handleStopStream = async () => {
+    setLoading(true);
+   
+    try {
+      await stopBroadcast();
+      addLog("Broadcast stopped.");
+    } catch (err) {
+      console.error(err);
+      addLog("Failed to stop local broadcast.");
+    }
+
+     try {
+      await stopQuizBroadcast.mutateAsync(quizId);
+      addLog("Broadcast stop signal sent.");
+    } catch (err) {
+      console.error(err);
+      addLog("Failed to notify backend to stop broadcast.");
+    }
+    setLoading(false);
   };
 
   // Start quiz
@@ -328,7 +364,7 @@ export default function QuizDetailPage() {
         </button>
 
         <button
-          onClick={stopBroadcast}
+          onClick={handleStopStream}
           className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold"
         >
           Stop Stream

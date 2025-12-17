@@ -49,6 +49,16 @@ export const useElapseQuestionTime = () => {
   });
 };
 
+const stopQuizBroadcast = async (id: string | number) => {
+  const res = await gameAxios.get(`/quiz/stop/broadcast/${id}`);
+  return res.data;
+};
+export const useStopQuizBroadcast = () => {
+  return useMutation({
+    mutationFn: (id: string | number) => stopQuizBroadcast(id),
+  });
+};
+
 export const getQuestionResultsTally = async (id: string | number) => {
   const res = await gameAxios.get(`/quiz/question/tally/${id}`);
   return res.data;
