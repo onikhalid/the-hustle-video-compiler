@@ -93,7 +93,7 @@ export const useCreateHostRealtimeToken = () => {
 
 export const getQuestionResultsTally = async (id: string | number) => {
   const res = await gameAxios.get(`/quiz/question/tally/${id}`);
-  return res.data;
+  return res.data as QuestionTallyResponse;
 };
 export const useGetQuestionResultsTally = (id?: string | number) => {
   return useQuery({
@@ -103,21 +103,39 @@ export const useGetQuestionResultsTally = (id?: string | number) => {
   });
 };
 
+export interface QuestionTallyResponse {
+  status: string;
+  message: string;
+  data: {
+    question: Question;
+    results: QuestionResult[];
+  };
+}
 
+export interface QuestionResult {
+  user_id: number;
+  user_name: string;
+  user_phone: string;
+  answered_in: number;
+  is_correct: boolean;
+  is_winner: boolean;
+  answer: string;
+}
 
-
+export interface Question {
+  question_id: number;
+  correct_option: string;
+}
 
 interface QuizzesListResponse {
   count: number;
   next: null;
   previous: null;
-  results: Results;
-}
-
-interface Results {
-  status: string;
-  message: string;
-  data: LiveQuizSession[];
+  results: {
+    status: string;
+    message: string;
+    data: LiveQuizSession[];
+  };
 }
 
 export interface LiveQuizSession {
@@ -147,7 +165,6 @@ const retrieveQuiz = async (id: string | number) => {
   return res.data;
 };
 
-
 export const useRetrieveQuiz = (id?: string | number) => {
   return useQuery({
     queryFn: () => retrieveQuiz(id!),
@@ -155,8 +172,6 @@ export const useRetrieveQuiz = (id?: string | number) => {
     enabled: !!id,
   });
 };
-
-
 
 export interface QuizStartDetailsResponse {
   status: string;

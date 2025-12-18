@@ -19,8 +19,10 @@ import { useIVSRealtimeStage } from "@/hooks/useIVSRealtimeStage";
 import { useMQTT } from "@/hooks/useMqttService";
 import { StatusBadge } from "../misc/components/StatusBadge";
 import { DataGrid, DataPoint } from "../misc/components/DataGrid";
-import Link from "next/link";
+import { TallyModal } from "../misc/components/TallyModal";
+import type { QuestionTallyResponse } from "../misc/api/quizHostApi";
 import { ChevronLeft } from "lucide-react";
+import Link from "next/link";
 
 const cardBase =
   "rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3.5 md:p-5";
@@ -60,6 +62,8 @@ export default function QuizDetailPage() {
   const [correctOption, setCorrectOption] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [roundTally, setRoundTally] = useState<QuestionTallyResponse["data"] | null>(null);
+  const [isTallyModalOpen, setIsTallyModalOpen] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { isConnected, sendMessage } = useMQTT();
 
@@ -195,6 +199,8 @@ export default function QuizDetailPage() {
   const handleSendQuestion = async () => {
     setLoading(true);
     setCorrectOption(null);
+    setRoundTally(null);
+    setIsTallyModalOpen(false);
     try {
       const res = await requestQuestion.mutateAsync(quizId);
       const q = res.data.question;
@@ -265,6 +271,8 @@ export default function QuizDetailPage() {
       const tallyRes = await getQuestionResultsTally(question.question_id);
       const correct = tallyRes?.data?.question?.correct_option || null;
       setCorrectOption(correct);
+      setRoundTally(tallyRes.data);
+      setIsTallyModalOpen(true);
       await sendMessage({
         event: "timer_end",
         data: { question: { correct_option: correct } },
@@ -292,6 +300,9 @@ export default function QuizDetailPage() {
       const tallyRes = await getQuestionResultsTally(question.question_id);
       await sendMessage({ event: "leaderboard_update", data: tallyRes.data });
       addLog("Manual tally sent.");
+      console.log(tallyRes.data);
+      setRoundTally(tallyRes.data);
+      setIsTallyModalOpen(true);
     } catch {
       addLog("Manual tally failed.");
     }
@@ -304,6 +315,8 @@ export default function QuizDetailPage() {
     try {
       await sendMessage({ event: "quiz_session_end" });
       addLog("Quiz session end signal sent.");
+      setIsTallyModalOpen(false);
+      setRoundTally(null);
     } catch {
       addLog("Failed to send session end.");
     }
@@ -369,7 +382,7 @@ export default function QuizDetailPage() {
         }
       : null,
     {
-      label: "Next question",
+      label: "Send next question",
       onClick: handleSendQuestion,
       disabled: loading || timerRunning,
       variant: "primary",
@@ -401,7 +414,8 @@ export default function QuizDetailPage() {
   ].filter(Boolean) as ControlButton[];
 
   const renderControlButton = (button: ControlButton) => {
-    const variant = button.variant ?? "primary";
+    const variant: NonNullable<ControlButton["variant"]> =
+      button.variant ?? "primary";
     return (
       <button
         key={button.label}
@@ -410,9 +424,9 @@ export default function QuizDetailPage() {
         disabled={button.disabled}
         className={`${controlButtonBase} ${controlVariants[variant]}`}
       >
-        <span className="txt-sm sm:text-base">{button.label}</span>
+        <span className="text-sm md:text-base">{button.label}</span>
         {button.description && (
-          <span className="hidden md:block mt-1 text-[0.6rem] md:text-[11px] font-normal text-white/75">
+          <span className="mt-1 hidden text-[0.65rem] font-normal text-white/75 md:block">
             {button.description}
           </span>
         )}
@@ -432,8 +446,8 @@ export default function QuizDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#050014] via-[#0b001c] to-[#1b0e35] pb-16">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 md:gap-6 p-3 md:py-10 sm:px-6 lg:px-10">
-        <header className="rounded-3xl border border-white/10 bg-white/[0.05] p-3 md:px-5 md:py-6 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 md:gap-6 p-3 md:py-8 sm:px-6 lg:px-10">
+        <header className="rounded-3xl border border-white/10 bg-white/[0.05] p-3 md:px-5 md:py5 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
           <div className="flex md:flex-col justify-between gap-4 md:gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex md:flex-col items-center md:items-start gap-4">
               <Link
@@ -660,7 +674,7 @@ export default function QuizDetailPage() {
                 </div>
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all"
+                    className="h-full transition-[width] ease-linear rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 "
                     style={{
                       width: `${Math.max(0, Math.min(timer, 10)) * 10}%`,
                     }}
@@ -724,6 +738,13 @@ export default function QuizDetailPage() {
           </section>
         </div>
       </div>
+      <TallyModal
+        isOpen={isTallyModalOpen && !!roundTally}
+        onClose={() => setIsTallyModalOpen(false)}
+        questionIndex={questionIndex}
+        questionText={question?.question ?? null}
+        tallyData={roundTally}
+      />
     </div>
   );
 }
