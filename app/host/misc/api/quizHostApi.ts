@@ -122,6 +122,8 @@ interface Results {
 
 export interface LiveQuizSession {
   id: number;
+  name: string | null;
+  description: string | null;
   game_code: string;
   anchor_id: number;
   anchor_name: string;

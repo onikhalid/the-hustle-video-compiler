@@ -6,6 +6,7 @@ export type StatusBadgeProps = {
   label: string;
   value?: string;
   tone?: StatusTone;
+  className?: string;
 };
 
 const toneStyles: Record<StatusTone, string> = {
@@ -16,8 +17,8 @@ const toneStyles: Record<StatusTone, string> = {
   accent: "bg-indigo-500/10 text-indigo-200",
 };
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, value, tone = "default" }) => (
-  <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${toneStyles[tone]}`}>
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, value, tone = "default", className }) => (
+  <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[0.6rem] md:text-xs font-semibold ${toneStyles[tone]} ${className ?? ""}`}>
     <span className="uppercase tracking-wide text-white/60">{label}</span>
     {value && <span>{value}</span>}
   </div>

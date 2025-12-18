@@ -22,7 +22,8 @@ import { DataGrid, DataPoint } from "../misc/components/DataGrid";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-const cardBase = "rounded-3xl border border-white/10 bg-white/[0.04] p-5";
+const cardBase =
+  "rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3.5 md:p-5";
 
 type ControlButton = {
   label: string;
@@ -33,7 +34,7 @@ type ControlButton = {
 };
 
 const controlButtonBase =
-  "flex flex-col justify-center rounded-2xl px-4 py-3 text-left text-sm font-semibold transition duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex flex-col justify-center rounded-lg md:rounded-2xl px-2 py-1.5 md:px-4 md:py-3 text-left text-sm font-semibold transition duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-50";
 
 const controlVariants: Record<NonNullable<ControlButton["variant"]>, string> = {
   primary:
@@ -368,7 +369,7 @@ export default function QuizDetailPage() {
         }
       : null,
     {
-      label: "Send next question",
+      label: "Next question",
       onClick: handleSendQuestion,
       disabled: loading || timerRunning,
       variant: "primary",
@@ -409,9 +410,9 @@ export default function QuizDetailPage() {
         disabled={button.disabled}
         className={`${controlButtonBase} ${controlVariants[variant]}`}
       >
-        <span>{button.label}</span>
+        <span className="txt-sm sm:text-base">{button.label}</span>
         {button.description && (
-          <span className="mt-1 text-[11px] font-normal text-white/75">
+          <span className="hidden md:block mt-1 text-[0.6rem] md:text-[11px] font-normal text-white/75">
             {button.description}
           </span>
         )}
@@ -431,25 +432,26 @@ export default function QuizDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#050014] via-[#0b001c] to-[#1b0e35] pb-16">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-10 sm:px-6 lg:px-10">
-        <header className="rounded-3xl border border-white/10 bg-white/[0.05] px-5 py-6 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 md:gap-6 p-3 md:py-10 sm:px-6 lg:px-10">
+        <header className="rounded-3xl border border-white/10 bg-white/[0.05] p-3 md:px-5 md:py-6 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
+          <div className="flex md:flex-col justify-between gap-4 md:gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex md:flex-col items-center md:items-start gap-4">
               <Link
                 type="button"
                 href={"/host"}
-                className="flex items-center w-max rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/20"
+                className="flex p-2 md:px-4 md:py-2 items-center justify-center w-max rounded-full border border-white/10 bg-white/10 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/20"
               >
-                <ChevronLeft className="inline size-3 lg:size-5 mr-1 -ml-1" />
-                Back to quizzes
+                <ChevronLeft className="inline size-3 lg:size-5 md:mr-1 md:-ml-1" />
+                <span className="max-md:hidden">Back to quizzes</span>
               </Link>
               <div>
-                <h1 className="text-3xl font-semibold text-white/90">
-                  Hosting quiz #{quizId}
+                <h1 className="sm:text-2xl md:text-3xl font-semibold text-white/90 truncate ">
+                  {/* {quizData?.data?.name || `Quiz ${quizId}`} */}
+                  Early Santa Liberty
                 </h1>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1 md:gap-3 shrink-0">
               <StatusBadge
                 label="MQTT"
                 value={isConnected ? "Online" : "Offline"}
@@ -457,7 +459,7 @@ export default function QuizDetailPage() {
               />
               <StatusBadge
                 label="Stage"
-                value={isJoined ? "Live" : "Preview"}
+                value={isJoined ? "Live" : "Prep"}
                 tone={isJoined ? "success" : "warning"}
               />
               {timerRunning && (
@@ -467,36 +469,33 @@ export default function QuizDetailPage() {
           </div>
 
           {metadata.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-6 max-md:!hidden">
               <DataGrid points={metadata} />
             </div>
           )}
-
+{/* 
           {stageDetails?.data?.stage_arn && (
-            <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 text-xs text-white/60">
+            <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 text-xs text-white/60 max-md:!hidden">
               <span className="font-semibold text-white/70">Stage ARN:</span>
               <span className="ml-2 break-all text-white/60">
                 {stageDetails.data.stage_arn}
               </span>
             </div>
-          )}
+          )} */}
         </header>
 
-        <div className="grid gap-6 xl:auto-rows-min xl:grid-cols-[1.35fr_1fr]">
+        <div className="grid gap-4 md:gap-6 xl:auto-rows-min xl:grid-cols-[1.35fr_1fr]">
           <section
-            className={`${cardBase} order-1 flex flex-col gap-5 shadow-[0_30px_60px_-40px_rgba(0,0,0,0.85)]`}
+            className={`${cardBase} order-1 flex flex-col gap-2.5 md:gap-5 shadow-[0_30px_60px_-40px_rgba(0,0,0,0.85)]`}
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/50">
                   Stage preview
                 </h2>
-                <p className="mt-1 text-xs text-white/40">
-                  Check framing, then control your stream without leaving this
-                  panel.
-                </p>
               </div>
               <StatusBadge
+                className="hidden md:block"
                 label="Realtime"
                 value={stageDetails?.data?.name || "Unlinked"}
                 tone={stageDetails?.data?.name ? "default" : "warning"}
@@ -530,7 +529,7 @@ export default function QuizDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 grid-cols-2">
                   {stageControlButtons.map(renderControlButton)}
                 </div>
               </div>
@@ -580,23 +579,20 @@ export default function QuizDetailPage() {
               )}
             </div>
 
-            <p className="text-xs text-white/50">
+            <p className="text-[0.65rem] md:text-xs text-white/50">
               {isJoined
                 ? "You are live on the IVS stage. The audience sees whatever you broadcast here."
                 : "Join the stage when you are ready to go live. Test your mic and lighting first."}
             </p>
           </section>
 
-          <section className={`${cardBase} order-2 flex flex-col gap-5`}>
+          <section className={`${cardBase} order-2 flex flex-col gap-2.5 md:gap-5`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/50">
                   Question feed
                 </h2>
-                <p className="mt-1 text-xs text-white/40">
-                  Review the prompt, then advance players with the controls
-                  below.
-                </p>
+              
               </div>
               {question && (
                 <span className="rounded-full bg-indigo-500/20 px-4 py-1 text-xs font-semibold text-indigo-200">
@@ -610,7 +606,7 @@ export default function QuizDetailPage() {
                 <p className="text-sm font-semibold text-white/90">
                   {question.question}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 grid-cols-2">
                   {["option_a", "option_b", "option_c", "option_d"].map(
                     (key, idx) => {
                       const optionKey = key as keyof typeof question;
@@ -619,7 +615,7 @@ export default function QuizDetailPage() {
                       return (
                         <div
                           key={optionKey as string | number}
-                          className={`rounded-2xl border px-4 py-3 text-sm font-medium transition ${
+                          className={`rounded-2xl border px-4 py-3 text-xs sm:text-sm font-medium transition ${
                             isCorrect
                               ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
                               : "border-white/10 bg-white/[0.03] text-white/80"
@@ -647,7 +643,7 @@ export default function QuizDetailPage() {
               </div>
             )}
 
-            <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid gap-2 grid-cols-2 2xl:grid-cols-3">
               {questionControlButtons.map(renderControlButton)}
             </div>
 
