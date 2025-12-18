@@ -17,9 +17,9 @@ import { getQuestionResultsTally } from "../misc/api/quizHostApi";
 
 import { useIVSRealtimeStage } from "@/hooks/useIVSRealtimeStage";
 import { useMQTT } from "@/hooks/useMqttService";
-import { StatusBadge } from "../misc/components/StatusBadge";
-import { DataGrid, DataPoint } from "../misc/components/DataGrid";
-import { TallyModal } from "../misc/components/TallyModal";
+import { StatusBadge } from "../components/StatusBadge";
+import { DataGrid, DataPoint } from "../components/DataGrid";
+import { TallyModal } from "../components/TallyModal";
 import type { QuestionTallyResponse } from "../misc/api/quizHostApi";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
@@ -286,12 +286,11 @@ export default function QuizDetailPage() {
     setLoading(false);
   };
 
-  // Manual tally fetch/send for current question
+  
   const handleManualTally = async () => {
     if (!question) return;
     setLoading(true);
     try {
-      // Call elapse endpoint first if timer was running
       if (timerRunning) {
         await elapseQTime.mutateAsync(question.question_id);
         addLog("Question time elapsed (manual).");
@@ -445,7 +444,7 @@ export default function QuizDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#050014] via-[#0b001c] to-[#1b0e35] pb-16">
+    <div className="min-h-screen  pb-16">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 md:gap-6 p-3 md:py-8 sm:px-6 lg:px-10">
         <header className="rounded-3xl border border-white/10 bg-white/[0.05] p-3 md:px-5 md:py5 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
           <div className="flex md:flex-col justify-between gap-4 md:gap-6 lg:flex-row lg:items-start lg:justify-between">

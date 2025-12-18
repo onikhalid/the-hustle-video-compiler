@@ -25,7 +25,7 @@ import { VideoUploader } from "@/components/video-uploader";
 import { VideoPreview } from "@/components/video-preview";
 import { VideoProcessingEngine } from "@/components/video-processing-engine";
 import { VideoConfiguration } from "./video-configuration";
-import { useCreateStreamSession } from "@/app/misc/api";
+import { useCreateStreamSession } from "@/app/(main)/streams/misc/api";
 
 // Adjusted the `VideoFile` interface to ensure `file` is always a `File` type
 export interface VideoFile {

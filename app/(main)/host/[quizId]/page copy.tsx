@@ -17,9 +17,9 @@ import { getQuestionResultsTally } from "../misc/api/quizHostApi";
 
 import { useIVSRealtimeStage } from "@/hooks/useIVSRealtimeStage";
 import { useMQTT } from "@/hooks/useMqttService";
-import { StatusBadge } from "../misc/components/StatusBadge";
-import { ActionSection, ActionConfig } from "../misc/components/ActionSection";
-import { DataGrid, DataPoint } from "../misc/components/DataGrid";
+import { StatusBadge } from "../components/StatusBadge";
+import { ActionSection, ActionConfig } from "../components/ActionSection";
+import { DataGrid, DataPoint } from "../components/DataGrid";
 
 const cardBase = "rounded-3xl border border-white/10 bg-white/[0.04] p-5";
 
@@ -316,7 +316,7 @@ export default function QuizDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#050014] via-[#0b001c] to-[#1b0e35] pb-16">
+    <div className="min-h-screen   pb-16">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-4 py-10 sm:px-6 lg:px-10">
         <header className="rounded-3xl border border-white/10 bg-white/[0.05] p-6 shadow-[0_40px_80px_-60px_rgba(15,0,38,0.9)] backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">

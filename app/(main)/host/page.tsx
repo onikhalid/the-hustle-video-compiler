@@ -5,29 +5,35 @@ import { useCreateLiveQuiz, useListQuizSessions } from "./misc/api/quizHostApi";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GradientButton from "@/components/ui/GradientButton";
+import { CreateQuizModal, CreateQuizFormValues } from "./components/CreateQuizModal";
 
 export default function HostQuizList() {
-  const [loading, setLoading] = useState(false);
-  const { data: quizSessions, isLoading: loadingSessions } =
-    useListQuizSessions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { data: quizSessions } = useListQuizSessions();
   const createQuiz = useCreateLiveQuiz();
   const router = useRouter();
 
   // Create quiz
   const handleCreateQuiz = async () => {
-    setLoading(true);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleSubmitCreateQuiz = async (values: CreateQuizFormValues) => {
     try {
-      const res = await createQuiz.mutateAsync({});
-      // Navigate to the details page
+      const res = await createQuiz.mutateAsync(values);
+      setIsModalOpen(false);
       router.push(`/host/${res.data.id}`);
-    } catch {
-      console.error("Failed to create quiz");
+    } catch (error) {
+      console.error("Failed to create quiz", error);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="bg-[url('/images/bg/hustle-bg.png')] bg-cover bg-center min-h-screen">
+    <div className=" min-h-screen">
       <div className="flex flex-col items-center justify-center pt-8 relative z-[5]">
         <h2
           className="md:text-[48px] text-xl font-black text-white relative leading-none"
@@ -46,15 +52,16 @@ export default function HostQuizList() {
         </p>
       </div>
 
-      <button
-        onClick={handleCreateQuiz}
-        className="bg-green-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-800 transition-colors"
-        disabled={loading}
-      >
-        {loading ? "Creating..." : "Create New Quiz"}
-      </button>
+      <section className="max-w-6xl mx-auto px-4 py-6 flex items-center">
+        <button
+          onClick={handleCreateQuiz}
+          className="bg-green-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-800 transition-colors"
+        >
+          Create New Quiz
+        </button>
+      </section>
 
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 relative z-[5] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 relative z-[5] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {quizSessions?.results.data.map((quiz) => (
           <div
             key={quiz.id}
@@ -144,12 +151,7 @@ export default function HostQuizList() {
                     {quiz.anchor_name}{" "}
                   </span>
 
-                  
-                  
-                  <Link
-                    href={`/host/${quiz.id}`}
-                    className="text-[#551FB9]"
-                  >
+                  <Link href={`/host/${quiz.id}`} className="text-[#551FB9]">
                     <GradientButton
                       className="w-max"
                       size="xs"
@@ -164,6 +166,12 @@ export default function HostQuizList() {
           </div>
         ))}
       </div>
+      <CreateQuizModal
+        isOpen={isModalOpen}
+        isSubmitting={createQuiz.isPending}
+        onClose={handleCloseModal}
+        onSubmit={handleSubmitCreateQuiz}
+      />
     </div>
   );
 }

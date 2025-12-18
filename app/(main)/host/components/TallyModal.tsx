@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { QuestionResult, Question } from "../api/quizHostApi";
+import { QuestionResult, Question } from "../misc/api/quizHostApi";
 import { StatusBadge } from "./StatusBadge";
 
 type TallyModalProps = {
@@ -49,7 +49,7 @@ export const TallyModal: React.FC<TallyModalProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/20"
+          className="cursor-pointer absolute right-4 top-4 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/20"
         >
           Close
         </button>

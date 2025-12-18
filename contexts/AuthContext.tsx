@@ -1,18 +1,20 @@
 "use client";
 import React, { createContext, useContext, useEffect, useReducer } from "react";
-import {  deleteAxiosDefaultToken, gameAxios, setAxiosDefaultToken } from "@/lib/axios";
+import {
+  deleteAxiosDefaultToken,
+  gameAxios,
+  setAxiosDefaultToken,
+} from "@/lib/axios";
 import { tokenStorage } from "@/lib/tokens";
+import { useRouter } from "next/navigation";
 
-export interface User {
-  account_name: string;
-  account_number: string;
-  bank_name: string;
-  token_units: number;
-  earnings_balance: number;
-  current_balance: number;
-  overall_wallet_balance: number;
-  player_name: string;
-  contestant_id: number;
+interface User {
+  user_id: number;
+  username: string;
+  email: string;
+  phone_number: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface AuthState {
@@ -53,7 +55,9 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
           isLoading: false,
         };
       case "UPDATE_USER":
-        const updatedUser = state.user ? { ...state.user, ...action.payload } : null;
+        const updatedUser = state.user
+          ? { ...state.user, ...action.payload }
+          : null;
         if (updatedUser) tokenStorage.setUser(updatedUser);
         return { ...state, user: updatedUser };
       case "LOGOUT":
@@ -80,9 +84,11 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   }
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [authState, authDispatch] = useReducer(authReducer, initialState);
-
+  const router = useRouter();
   const ensureToken = (): string | null => {
     const token = tokenStorage.getToken();
     if (token) {
@@ -96,12 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       try {
         const token = tokenStorage.getToken();
-        const storedUser = tokenStorage.getUser();
         if (token) {
           setAxiosDefaultToken(token, gameAxios);
-        }
-        if (storedUser) {
-          authDispatch({ type: "LOGIN", payload: storedUser });
+          const res = await gameAxios.get("/api/accounts/user/details");
+          console.log(res.data);
+          authDispatch({ type: "LOGIN", payload: res.data?.data as User });
+        } else {
+          authDispatch({ type: "STOP_LOADING" });
+          authDispatch({ type: "LOGOUT" });
+          router.push("/login");
         }
       } finally {
         authDispatch({ type: "STOP_LOADING" });

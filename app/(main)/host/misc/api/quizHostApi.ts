@@ -1,9 +1,20 @@
 import { gameAxios } from "@/lib/axios";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-const createLiveQuiz = async (payload: any) => {
-  const res = await gameAxios.post("/quiz/create/", payload);
-  return res.data;
+interface CreateLiveQuizPayload {
+  name: string;
+  description: string;
+}
+
+interface CreateLiveQuizResponse {
+  status: string;
+  message: string;
+  data: LiveQuizSession;
+}
+
+const createLiveQuiz = async (payload: CreateLiveQuizPayload) => {
+  const res = await gameAxios.post("/quiz/realtime/create/", payload);
+  return res.data as CreateLiveQuizResponse;
 };
 export const useCreateLiveQuiz = () => {
   return useMutation({ mutationFn: createLiveQuiz });

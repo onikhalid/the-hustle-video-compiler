@@ -24,14 +24,13 @@ export default function Home() {
   const handleCreateSession = () => {
     createSession(undefined, {
       onSuccess: (response) => {
-        // Route to create-stream page with the new session ID
-        router.push(`/create-stream?sessionId=${response.session_id}`);
+        router.push(`/streams/${response.session_id}`);
       },
     });
   };
 
   const handleRefresh = () => {
-    setCurrentUrl(undefined); // Reset to first page
+    setCurrentUrl(undefined);
     refetch();
   };
 

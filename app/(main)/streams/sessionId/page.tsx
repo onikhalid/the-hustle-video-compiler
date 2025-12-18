@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, Play, ArrowLeft, Upload } from "lucide-react";
 import { useGetSingleStreamSession } from "../misc/api/getSingleStreamSession";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
   useCompileStreamSession,
@@ -42,15 +42,15 @@ export default function CreateStreamPage() {
   const [timerState, setTimerState] = useState<"idle" | "running" | "ended">(
     "idle"
   );
-  const searchParams = useSearchParams();
+  const params = useParams();
   const router = useRouter();
-  const sessionId = searchParams.get("sessionId");
+  const sessionId = params.sessionId as string | undefined;
 
   const {
     data: sessionData,
     isLoading,
     error,
-  } = useGetSingleStreamSession(sessionId || undefined);
+  } = useGetSingleStreamSession(sessionId);
   const initSingleUpload = useInitSingleUpload();
   const compileSession = useCompileStreamSession();
   const completeUpload = useCompleteUpload();
